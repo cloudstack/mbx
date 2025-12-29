@@ -217,7 +217,7 @@ else
     [ -e "$f" ] || continue
     sed -i \
       -e 's|^mirrorlist=|#mirrorlist=|g' \
-      -e 's|^#baseurl=http://mirror.centos.org|baseurl=http://vault.centos.org|g' \
+      -e 's|^#baseurl=http://mirror.centos.org|baseurl=https://vault.centos.org|g' \
       "$f"
   done
   dnf install createrepo -y || true
