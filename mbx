@@ -255,7 +255,7 @@ package() {
     sleep 2
   done
 
-  iscp files/build.sh root@$builder_ip://jenkins/build.sh
+  iscp $ROOT/files/build.sh root@$builder_ip://jenkins/build.sh
   # Is it possible to scp local maven cache to container?
 
   issh root@"$builder_ip" \
@@ -307,7 +307,7 @@ seed_systemvmtemplate() {
   if [[ "$hypervisor" == "vmw" ]]; then
     hypervisor="vmware"
   fi
-  sudo /export/monkeybox/files/setup-systemvmtemplate.sh -m $sstore_path -f $template_path -h $hypervisor -F
+  sudo $ROOT/files/setup-systemvmtemplate.sh -m $sstore_path -f $template_path -h $hypervisor -F
 }
 
 deploy() {
