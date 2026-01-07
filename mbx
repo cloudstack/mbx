@@ -312,7 +312,7 @@ seed_systemvmtemplate() {
 
 deploy() {
   if [[ "$1" == "-h" ]]; then
-    echo "Usage: mbx deploy <name of env> <mgmt server template> <hypervisor template> <repo url>"
+    echo "Usage: mbx deploy <name of env> <mgmt server template> <hypervisor template> <repo url> [--hostcount=N]"
     exit 0
   fi
 
@@ -336,6 +336,25 @@ deploy() {
   check_mbxt hypervisor $hyt
   hypervisor=$(echo $hyt |  awk '{print substr($0,6,3)}')
   repo=${4:-"http://packages.shapeblue.com/cloudstack/upstream/el8/4.20"}
+  hostcount=2
+  # Parse additional named arguments
+  for arg in "${@:5}"; do
+      case $arg in
+          --hostcount=*)
+              hostcount="${arg#*=}"
+              ;;
+          *)
+              echo "Unknown argument: $arg"
+              exit 1
+              ;;
+      esac
+  done
+
+  # Validate hostcount is either 1 or 2
+  if ! [[ "$hostcount" =~ ^[1-2]$ ]]; then
+      echo "Invalid hostcount: $hostcount. Only 1 or 2 hosts are supported."
+      exit 1
+  fi
 
   uuid=$(cat /proc/sys/kernel/random/uuid | sed 's/-.*//g')
   env="qa$id-$name-$uuid-$hypervisor"
@@ -362,10 +381,12 @@ deploy() {
     virsh setmaxmem $env-host1 20G --config
   fi
 
-  # Clone hypervisor host2
-  virt-clone --original $hyt --name $env-host2 --file $ROOT/boxes/$env/$env-host2.qcow2 --check all=off
-  echo $env-host2 >> $ROOT/boxes/$env/list
-  virsh setmaxmem $env-host2 8G --config
+  if [[ "$hostcount" -eq 2 ]]; then
+    # Clone hypervisor host2
+    virt-clone --original $hyt --name $env-host2 --file $ROOT/boxes/$env/$env-host2.qcow2 --check all=off
+    echo $env-host2 >> $ROOT/boxes/$env/list
+    virsh setmaxmem $env-host2 8G --config
+  fi
 
   echo "Starting VMs"
   for domain in $(cat $ROOT/boxes/$env/list); do virsh start $domain; done;
@@ -460,34 +481,34 @@ deploy() {
   issh root@$msip "mysql -u root --execute=\"INSERT INTO cloud.configuration (category, instance, component, name, value) VALUES ('Advanced', 'DEFAULT', 'management-server', 'integration.api.port', '8096');\""
   issh root@$msip cloudstack-setup-management
 
-  # Setup KVM hosts
+
   if [[ $hypervisor == "kvm" ]]; then
-    # Fix EL7 repo
-    issh root@$env-host1 yum clean all
-    issh root@$env-host1 rpm --import https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-8 || true
-    issh root@$env-host1 "sed -i '/^baseurl=.*/d' /etc/yum.repos.d/cloudstack.repo && echo baseurl=$repo >> /etc/yum.repos.d/cloudstack.repo"
-    issh root@$env-host1 yum install -y cloudstack-agent
-    # Fix EL7 repo
-    issh root@$env-host2 "sed -i '/^baseurl=.*/d' /etc/yum.repos.d/cloudstack.repo && echo baseurl=$repo >> /etc/yum.repos.d/cloudstack.repo"
-    issh root@$env-host2 yum clean all
-    issh root@$env-host2 rpm --import https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-8 || true
-    issh root@$env-host2 yum install -y cloudstack-agent
-    # Install qemu-kvm-ev on EL7
-    if [[ "$hyt" == "mbxt-kvm-el7" ]]; then
-      issh root@$env-host1 "yum install -y centos-release-qemu-ev && yum install -y qemu-kvm-ev"
-      issh root@$env-host2 "yum install -y centos-release-qemu-ev && yum install -y qemu-kvm-ev"
-    fi
-    # Fix host reserved memory
-    issh root@$env-host1 "echo host.reserved.mem.mb=512 >> /etc/cloudstack/agent/agent.properties"
-    issh root@$env-host2 "echo host.reserved.mem.mb=512 >> /etc/cloudstack/agent/agent.properties"
+    for ((i=1; i<=hostcount; i++)); do
+      host="$env-host$i"
+
+      # Fix EL7 repo (if needed)
+      issh root@$host yum clean all
+      issh root@$host rpm --import https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-8 || true
+      issh root@$host "sed -i '/^baseurl=.*/d' /etc/yum.repos.d/cloudstack.repo && echo baseurl=$repo >> /etc/yum.repos.d/cloudstack.repo"
+      issh root@$host yum install -y cloudstack-agent
+      # Install qemu-kvm-ev on EL7
+      if [[ "$hyt" == "mbxt-kvm-el7" ]]; then
+        issh root@$host "yum install -y centos-release-qemu-ev && yum install -y qemu-kvm-ev"
+      fi
+      # Fix host reserved memory
+      issh root@$host "echo host.reserved.mem.mb=512 >> /etc/cloudstack/agent/agent.properties"
+    done
   fi
 
   # Setup xen/xcp hosts
   if [[ $hypervisor == "xen" || $hypervisor == "xcp" ]]; then
     masterip=$(getent hosts $env-host1 | awk '{ print $1 }')
     issh root@$env-host1 "xe pool-param-set name-label=${env}1 uuid=\$(xe pool-list --minimal)"
-    issh root@$env-host2 "xe pool-join master-address=${masterip} master-username=root master-password=P@ssword123"
-    issh root@$env-host2 "create-guest-templates" 2>&1 > /dev/null || true
+    for ((i=2; i<=hostcount; i++)); do
+      host="$env-host$i"
+      issh root@$host "xe pool-join master-address=${masterip} master-username=root master-password=P@ssword123"
+      issh root@$host "create-guest-templates" 2>&1 > /dev/null || true
+    done
   fi
 
   # Generate marvin config
@@ -501,7 +522,11 @@ deploy() {
   export pod_start="${monkeynet_gw_prefix}.$id.126"
   export pod_end="${monkeynet_gw_prefix}.$id.250"
   export host1=$(getent hosts $env-host1 | awk '{ print $1 }')
-  export host2=$(getent hosts $env-host2 | awk '{ print $1 }')
+  for ((i=2; i<=hostcount; i++)); do
+    host="$env-host$i"
+    ip=$(getent hosts $host | awk '{ print $1 }')
+    eval "export host$i=$ip"
+  done
   export storage_path="/export/testing/$env"
 
   if [[ $hypervisor == "xcp" ]]; then
@@ -528,8 +553,19 @@ deploy() {
     done
     sleep 10
     # Check vim service and add hosts cluster
-    $ROOT/files/govc cluster.add -k=true -u=https://administrator@vsphere.local:P@ssword123@$vcip/sdk -cluster "/DC/host/Cluster" -noverify -force -hostname $host1 -username root -password P@ssword123
-    $ROOT/files/govc cluster.add -k=true -u=https://administrator@vsphere.local:P@ssword123@$vcip/sdk -cluster "/DC/host/Cluster" -noverify -force -hostname $host2 -username root -password P@ssword123
+    for ((i=1; i<=hostcount; i++)); do
+      host_var="host$i"
+      host="${!host_var}"
+
+      $ROOT/files/govc cluster.add \
+        -k=true \
+        -u="https://administrator@vsphere.local:P@ssword123@$vcip/sdk" \
+        -cluster "/DC/host/Cluster" \
+        -noverify -force \
+        -hostname "$host" \
+        -username root \
+        -password P@ssword123
+    done
     echo "Before launching zone, open the VC web UI and reset any warning on the ESXi hosts by clicking 'Reset to Green'"
   fi
 
