@@ -213,6 +213,15 @@ else
   do
     cp $package_folder/$pkg /output
   done
+  for f in /etc/yum.repos.d/CentOS-*.repo; do
+    [ -e "$f" ] || continue
+    sed -i \
+      -e 's|^mirrorlist=|#mirrorlist=|g' \
+      -e 's|^#baseurl=http://mirror.centos.org|baseurl=https://vault.centos.org|g' \
+      "$f"
+  done
+  dnf install createrepo -y || true
+  createrepo /output
 fi
 
 rm -rf $ROOT/*
