@@ -103,9 +103,10 @@ package() {
   output_dir="/export/testing/builds"
   pr_id=""
   maven_flags=""
+  github_token="${GITHUB_TOKEN:-}"
 
   # Parse named arguments
-  TEMP=$(getopt -o h --long help,repo:,tag:,pr:,distro:,output-dir:,flags: -n 'mbx package' -- "$@")
+  TEMP=$(getopt -o h --long help,repo:,tag:,pr:,distro:,output-dir:,flags:,github-token: -n 'mbx package' -- "$@")
   if [ $? != 0 ]; then echo "Failed parsing options." >&2; exit 1; fi
   eval set -- "$TEMP"
 
@@ -119,12 +120,14 @@ package() {
         echo "  --distro <distro>      Distribution: el7/el8/el9/debian (default: el8)"
         echo "  --output-dir <dir>     Output directory (default: /export/testing/builds)"
         echo "  --flags <flags>        Comma-separated Maven build flags (e.g., '-DskipTests,-T4')"
+        echo "  --github-token <token> GitHub token for private repos/tags (default: GITHUB_TOKEN env var)"
         echo "  -h, --help             Show this help"
         echo ""
         echo "Examples:"
         echo "  mbx package --tag 4.20"
         echo "  mbx package --tag 1234 --distro debian --flags '-DskipTests'"
         echo "  mbx package --repo shapeblue/cloudstack --tag feature-branch --flags '-DskipTests,-T4'"
+        echo "  mbx package --repo myorg/private-repo --tag 1.2.3 --github-token <token>"
         exit 0
         ;;
       --repo)
@@ -163,6 +166,10 @@ package() {
           maven_flags=""
           shift 1
         fi
+        ;;
+      --github-token)
+        github_token="$2"
+        shift 2
         ;;
       --)
         shift
@@ -204,6 +211,11 @@ package() {
   echo "  Output: $output_dir"
   echo "  PR ID: ${pr_id:-none}"
   echo "  Maven flags: ${maven_flags:-none}"
+  if [[ -n "$github_token" ]]; then
+    echo "  GitHub token: configured"
+  else
+    echo "  GitHub token: not set"
+  fi
 
   # Generate UUID
   if command -v uuid >/dev/null 2>&1; then
@@ -242,6 +254,7 @@ package() {
     -e "PR_ID=$pr_id" \
     -e "ACS_BRANCH=$tag" \
     -e "DISTRO=$distro" \
+    -e "GITHUB_TOKEN=$github_token" \
     -e "FLAGS='$maven_flags'" \
     --name "$container_name" \
     "$image_name" \
@@ -259,7 +272,7 @@ package() {
   # Is it possible to scp local maven cache to container?
 
   issh root@"$builder_ip" \
-    GIT_REPO="$repo" GIT_TAG="$tag" PR_ID="$pr_id" ACS_BRANCH="$tag" DISTRO="$distro" FLAGS="'$maven_flags'" \
+    GIT_REPO="$repo" GIT_TAG="$tag" PR_ID="$pr_id" ACS_BRANCH="$tag" DISTRO="$distro" GITHUB_TOKEN="$github_token" FLAGS="'$maven_flags'" \
     bash -x /jenkins/build.sh
 
   echo "Packages can be found at $output_dir"
