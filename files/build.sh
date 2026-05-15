@@ -59,6 +59,22 @@ echo "PR ID: $PR_ID"
 echo "ACS Branch: $ACS_BRANCH"
 echo "Distro: $DISTRO"
 echo "Flags: $FLAGS"
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  echo "GitHub token: configured"
+else
+  echo "GitHub token: not set"
+fi
+
+git_auth_args=()
+curl_auth_args=()
+if [[ -n "${GITHUB_TOKEN:-}" ]]; then
+  git_auth_args=(-c "http.https://github.com/.extraheader=Authorization: Bearer $GITHUB_TOKEN")
+  curl_auth_args=(-H "Authorization: Bearer $GITHUB_TOKEN")
+fi
+
+run_git() {
+  git "${git_auth_args[@]}" "$@"
+}
 
 export ROOT=/jenkins
 cd $ROOT
@@ -67,47 +83,47 @@ rm -fr deps/*jar deps/awsapi-lib deps/*.mar NONOSS
 # Initialize git repository and fetch code
 echo "Initializing git repository..."
 if [ ! -d ".git" ]; then
-    git init .
+  git init .
 fi
 
 # Add remote origin if it doesn't exist
 if ! git remote get-url origin >/dev/null 2>&1; then
     echo "Adding remote origin: https://github.com/$GIT_REPO.git"
-    git remote add origin "https://github.com/$GIT_REPO.git"
+  git remote add origin "https://github.com/$GIT_REPO.git"
 else
     echo "Setting remote origin URL: https://github.com/$GIT_REPO.git"
-    git remote set-url origin "https://github.com/$GIT_REPO.git"
+  git remote set-url origin "https://github.com/$GIT_REPO.git"
 fi
 
 # Fetch the repository
 echo "Fetching repository from https://github.com/$GIT_REPO.git"
-git reset --hard
-git clean -fd
-git fetch origin --depth=1 --progress
+run_git reset --hard
+run_git clean -fd
+run_git fetch origin --depth=1 --progress
 
 if [[ "${PR_ID}" != "" ]]; then
   # Find base branch
-  BASE=$(curl https://api.github.com/repos/$GIT_REPO/pulls/$PR_ID | jq -r '.base.ref')
-  git checkout ${BASE}
+  BASE=$(curl "${curl_auth_args[@]}" https://api.github.com/repos/$GIT_REPO/pulls/$PR_ID | jq -r '.base.ref')
+  run_git checkout ${BASE}
 else
   # For regular branches/tags
   echo "Fetching and checking out: $ACS_BRANCH"
-  if git ls-remote --heads origin "$ACS_BRANCH" | grep -q "$ACS_BRANCH"; then
+  if run_git ls-remote --heads origin "$ACS_BRANCH" | grep -q "$ACS_BRANCH"; then
       # It's a branch
-      if [ "$(git rev-parse --abbrev-ref HEAD)" = "$ACS_BRANCH" ]; then
+    if [ "$(run_git rev-parse --abbrev-ref HEAD)" = "$ACS_BRANCH" ]; then
           echo "Already on branch $ACS_BRANCH, pulling latest changes with rebase..."
-          git pull --rebase origin "$ACS_BRANCH"
+      run_git pull --rebase origin "$ACS_BRANCH"
       else
-          git fetch origin "$ACS_BRANCH:$ACS_BRANCH" --depth=1 --progress
-          git checkout "$ACS_BRANCH"
+      run_git fetch origin "$ACS_BRANCH:$ACS_BRANCH" --depth=1 --progress
+      run_git checkout "$ACS_BRANCH"
       fi
-  elif git ls-remote --tags origin "$ACS_BRANCH" | grep -q "$ACS_BRANCH"; then
+  elif run_git ls-remote --tags origin "$ACS_BRANCH" | grep -q "$ACS_BRANCH"; then
       # It's a tag
-      git fetch origin "refs/tags/$ACS_BRANCH:refs/tags/$ACS_BRANCH" --depth=1 --progress
-      git checkout "refs/tags/$ACS_BRANCH"
+    run_git fetch origin "refs/tags/$ACS_BRANCH:refs/tags/$ACS_BRANCH" --depth=1 --progress
+    run_git checkout "refs/tags/$ACS_BRANCH"
   else
       # Try to fetch as commit SHA
-      git checkout "$ACS_BRANCH"
+    run_git checkout "$ACS_BRANCH"
   fi
 fi
 
