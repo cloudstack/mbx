@@ -68,7 +68,8 @@ fi
 git_auth_args=()
 curl_auth_args=()
 if [[ -n "${GITHUB_TOKEN:-}" ]]; then
-  git_auth_args=(-c "http.https://github.com/.extraheader=Authorization: Bearer $GITHUB_TOKEN")
+  github_git_auth_b64="$(printf 'x-access-token:%s' "$GITHUB_TOKEN" | base64 | tr -d '\n')"
+  git_auth_args=(-c "http.https://github.com/.extraheader=Authorization: Basic $github_git_auth_b64")
   curl_auth_args=(-H "Authorization: Bearer $GITHUB_TOKEN")
 fi
 
