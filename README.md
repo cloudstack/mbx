@@ -3,7 +3,12 @@
 <img src="https://raw.githubusercontent.com/shapeblue/mbx/main/doc/images/box-start.png" style="width:500px;">
 
 MonkeyBox `mbx` enables building CloudStack packages and deploying CloudStack
-dev and qa environment using pre-built DHCP-enabled VM templates.
+Dev and QA environment using pre-built DHCP-enabled VM templates, on baremetal Linux/KVM machine.
+
+Learn more about Apache CloudStack:
+- CloudStack 101: https://www.youtube.com/watch?v=pASzZR57V_8
+- DIY CloudStack IaaS cloud for users: https://yadv.in/posts/cloudstack-kvm
+- Learn CloudStack Development: https://github.com/shapeblue/hackerbook
 
 Table of Contents
 =================
