@@ -105,11 +105,13 @@ The `mbx` environments, their configurations and VM disks are hosted at
 ## Compatibility
 
 Host requirements:
-- Ubuntu 22.04/24.04 LTS (Ubuntu Recommended) or EL8/9**
+- Ubuntu 26.04 LTS (Ubuntu Recommended) or EL8/9**
 - Recommended 32GB RAM with Intel VT-x or AMD-V enabled 4+cores CPU
 - Uninstall any other hypervisor software (such as VMware workstation, VirtualBox)
 
-**Note: `mbx` has been tested and developed on Ubuntu 22.04 and 24.04 LTS; VMware environment require vmxnet3 which may not be supported on EL environments
+**VMware environment require vmxnet3 NIC controller (via qemu)which may not be supported on EL environments for which Ubuntu 26.04 is recommended.
+
+Note: `mbx` has been tested and developed on Ubuntu 22.04 and 24.04 LTS, and works on Ubuntu 26.04
 
 Supported Management Server (Templates):
 - EL7 (CentOS 7)
@@ -122,7 +124,7 @@ Supported Hypervisors (Templates):
 - XCP-ng: 8.2, 8.3
 - XenServer: 7.1 LSTR, 8.4
 
-Tested CloudStack versions: 4.16+
+Tested CloudStack versions: 4.18, 4.22+
 
 - MBX QA & Development supported with CloudStack version 4.16 and later.
 - Smoketests supported CloudStack versions: 4.16 or later.
@@ -563,3 +565,7 @@ To remote-debug the KVM agent, put the following in
 The above will ensure that JVM will start with debugging enabled on port 8787.
 In IntelliJ, or your IDE/editor you can attach a remote debugger to this
 address:port and put breakpoints (and watches) as applicable.
+
+## Contributing
+
+Raise an issue or a pull request to the repo: https://github.com/cloudstack/mbx
