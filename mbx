@@ -453,8 +453,8 @@ deploy() {
   issh root@$msip yum clean all
   issh root@$msip rpm --import https://repo.almalinux.org/almalinux/RPM-GPG-KEY-AlmaLinux-8 || true
   issh root@$msip yum install -y python3-pip
-  issh root@$msip "pip3 install --upgrade pip && pip3 install --ignore-installed netaddr mysql-connector-python==8.0.20" || true
-  issh root@$msip "pip2 install --upgrade pip && pip2 install --ignore-installed netaddr mysql-connector-python==8.0.20" || true
+  issh root@$msip "pip3 install --upgrade pip && pip3 install --ignore-installed netaddr mysql-connector-python==8.0.31" || true
+  issh root@$msip "pip2 install --upgrade pip && pip2 install --ignore-installed netaddr mysql-connector-python==8.0.31" || true
   issh root@$msip yum install -y cloudstack-management cloudstack-usage cloudstack-common cloudstack-integration-tests cloudstack-marvin tar tzdata-java
   issh root@$msip "cloudstack-setup-databases cloud:cloud@localhost --deploy-as=root: -i $msip"
   issh root@$msip "mysql -u root --execute=\"INSERT INTO cloud.configuration (category, instance, component, name, value) VALUES ('Advanced', 'DEFAULT', 'management-server', 'integration.api.port', '8096');\""
@@ -565,7 +565,7 @@ launch() {
   issh root@$msip "pip3 uninstall -y Marvin" || true
   issh root@$msip "cd /usr/share/cloudstack-marvin && tar zxf Marvin*.tar.gz && mv Marvin*.tar.gz archive-marvin.tar.gz && sed -i 's/-SNAPSHOT//g' Marvin-*/setup.py"
   issh root@$msip "pip3 install --ignore-installed /usr/share/cloudstack-marvin/Marvin-*/"
-  issh root@$msip "pip3 install --ignore-installed mysql-connector-python==8.0.20" || true
+  issh root@$msip "pip3 install --ignore-installed mysql-connector-python==8.0.31" || true
   issh root@$msip "cd /marvin && ln -sf /usr/share/cloudstack-integration-tests tests" || true
   issh root@$msip "python3 -m marvin.deployDataCenter -i /marvin/marvin.cfg"
 
